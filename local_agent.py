@@ -147,9 +147,10 @@ def system_command():
                     webbrowser.open(f"https://www.youtube.com/results?search_query={song}")
                     return jsonify({"status": f"Showing results for {song}"})
 
-        # OPEN APP
+        # OPEN APP or WEBSITE
         if "open" in text:
             app_name = text.replace("open", "").strip()
+            # Try app first
             for key in APPS:
                 if key in app_name:
                     subprocess.Popen(APPS[key], shell=True)
@@ -158,6 +159,49 @@ def system_command():
             if match:
                 subprocess.Popen(APPS[match[0]], shell=True)
                 return jsonify({"status": f"Opening {match[0]}"})
+            # Fallback: open as website
+            sites = {
+                "youtube": "https://www.youtube.com",
+                "google": "https://www.google.com",
+                "github": "https://github.com",
+                "instagram": "https://www.instagram.com",
+                "facebook": "https://www.facebook.com",
+                "twitter": "https://twitter.com",
+                "linkedin": "https://www.linkedin.com",
+                "netflix": "https://www.netflix.com",
+                "amazon": "https://www.amazon.in",
+                "flipkart": "https://www.flipkart.com",
+                "whatsapp web": "https://web.whatsapp.com",
+                "gmail": "https://mail.google.com",
+                "google drive": "https://drive.google.com",
+                "google maps": "https://maps.google.com",
+                "chatgpt": "https://chat.openai.com",
+                "spotify": "https://open.spotify.com",
+                "reddit": "https://www.reddit.com",
+                "wikipedia": "https://www.wikipedia.org",
+                "stack overflow": "https://stackoverflow.com",
+                "leetcode": "https://leetcode.com",
+                "geeksforgeeks": "https://www.geeksforgeeks.org",
+                "canva": "https://www.canva.com",
+                "figma": "https://www.figma.com",
+                "notion": "https://www.notion.so",
+                "swiggy": "https://www.swiggy.com",
+                "zomato": "https://www.zomato.com",
+                "hotstar": "https://www.hotstar.com",
+                "prime video": "https://www.primevideo.com",
+                "seeding minds": "https://seedingminds.co.in",
+                "orcode": "https://orcode.co.in",
+            }
+            if app_name in sites:
+                webbrowser.open(sites[app_name])
+                return jsonify({"status": f"Opening {app_name}"})
+            # domain like flipkart.com
+            if re.match(r"^[\w\-]+\.[a-z]{2,}(\.[a-z]{2,})?$", app_name):
+                webbrowser.open(f"https://{app_name}")
+                return jsonify({"status": f"Opening {app_name}"})
+            # generic fallback
+            webbrowser.open(f"https://www.{app_name}.com")
+            return jsonify({"status": f"Opening {app_name}"})
 
         return jsonify({"status": "Command not recognized locally"})
 
