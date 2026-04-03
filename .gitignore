@@ -1,0 +1,8 @@
+.env
+__pycache__/
+*.pyc
+*.pt
+screenshots/
+recordings/
+history.json
+screenshot.png

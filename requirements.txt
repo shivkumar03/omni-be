@@ -1,0 +1,12 @@
+flask
+flask-cors
+psutil
+pyautogui
+screen-brightness-control
+pywhatkit
+groq
+python-dotenv
+tavily-python
+pymupdf
+python-docx
+gunicorn
