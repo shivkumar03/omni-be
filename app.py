@@ -1,13 +1,10 @@
 import os
 import webbrowser
-import pyautogui
 import subprocess
 import psutil
-import screen_brightness_control as sbc
 import datetime
 import difflib
 import time
-import pywhatkit as kit
 import socket
 import smtplib
 import urllib.request
@@ -15,6 +12,16 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import base64
 import tempfile
+import re
+
+# Windows-only imports (not available on Render/Linux)
+try:
+    import pyautogui
+    import pywhatkit as kit
+    import screen_brightness_control as sbc
+    WINDOWS_MODE = True
+except Exception:
+    WINDOWS_MODE = False
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -503,26 +510,27 @@ def open_website(app_name):
 # 🔊 VOLUME CONTROL
 # =====================================================
 def volume_up():
+    if not WINDOWS_MODE: return "Volume control not available on server"
     for _ in range(5):
         pyautogui.press("volumeup")
     return "Volume increased"
 
 def volume_down():
+    if not WINDOWS_MODE: return "Volume control not available on server"
     for _ in range(5):
         pyautogui.press("volumedown")
     return "Volume decreased"
 
 def mute():
+    if not WINDOWS_MODE: return "Mute not available on server"
     pyautogui.press("volumemute")
     return "Muted"
 
 # =====================================================
 # 🔆 BRIGHTNESS CONTROL
 # =====================================================
-import screen_brightness_control as sbc
-import re
-
 def set_brightness(command):
+    if not WINDOWS_MODE: return "Brightness control not available on server"
     try:
         command = command.lower()
 
@@ -579,8 +587,6 @@ def restart():
 # =====================================================
 # ⚙️ SETTINGS SHORTCUTS
 # =====================================================
-import os
-
 def open_settings(text):
     text = text.lower()
 
@@ -681,10 +687,12 @@ def wifi_control(turn_on=True):
 # 🖥️ WINDOW CONTROL
 # =====================================================
 def minimize_all():
+    if not WINDOWS_MODE: return "Window control not available on server"
     pyautogui.hotkey("win", "d")
     return "Minimized all windows"
 
 def maximize_all():
+    if not WINDOWS_MODE: return "Window control not available on server"
     pyautogui.hotkey("win", "shift", "m")
     return "Restored all windows"
 
@@ -693,22 +701,15 @@ def maximize_all():
 # =====================================================
 def play_youtube(text):
     song = extract_song(text)
-
     if not song:
         return "What should I play?"
-
+    if not WINDOWS_MODE:
+        return f"Open YouTube and search: {song}"
     try:
-        # Open YouTube video
         kit.playonyt(song)
-
-        # wait for page to load
         time.sleep(5)
-
-        # press space to ensure video plays
         pyautogui.press("space")
-
         return f"Playing {song} on YouTube"
-
     except Exception as e:
         url = f"https://www.youtube.com/results?search_query={song}"
         webbrowser.open(url)
