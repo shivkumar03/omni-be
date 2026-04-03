@@ -193,15 +193,12 @@ def system_command():
                 "orcode": "https://orcode.co.in",
             }
             if app_name in sites:
-                webbrowser.open(sites[app_name])
-                return jsonify({"status": f"Opening {app_name}"})
+                return jsonify({"status": f"Opening {app_name}", "url": sites[app_name]})
             # domain like flipkart.com
             if re.match(r"^[\w\-]+\.[a-z]{2,}(\.[a-z]{2,})?$", app_name):
-                webbrowser.open(f"https://{app_name}")
-                return jsonify({"status": f"Opening {app_name}"})
+                return jsonify({"status": f"Opening {app_name}", "url": f"https://{app_name}"})
             # generic fallback
-            webbrowser.open(f"https://www.{app_name}.com")
-            return jsonify({"status": f"Opening {app_name}"})
+            return jsonify({"status": f"Opening {app_name}", "url": f"https://www.{app_name}.com"})
 
         return jsonify({"status": "Command not recognized locally"})
 
