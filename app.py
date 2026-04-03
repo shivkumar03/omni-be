@@ -401,30 +401,14 @@ def open_website(app_name):
     try:
         app_name = app_name.lower().replace("open", "").strip()
 
-        # If already full URL
         if app_name.startswith("http://") or app_name.startswith("https://"):
-            webbrowser.open(app_name)
-            return f"Opening {app_name}"
+            return app_name, f"Opening {app_name}"
 
-        # If user enters domain like flipkart.com or orcode.co.in
         if re.match(r"^[\w\-]+\.[a-z]{2,}(\.[a-z]{2,})?$", app_name):
             url = f"https://{app_name}"
-            webbrowser.open(url)
-            return f"Opening {url}"
+            return url, f"Opening {url}"
 
-        # Known websites shortcut
         sites = {
-            "youtube": "https://www.youtube.com",
-            "google": "https://www.google.com",
-            "github": "https://github.com",
-            "zomato": "https://www.zomato.com",
-            "amazon": "https://www.amazon.in",
-            "flipkart": "https://www.flipkart.com",
-            "instagram": "https://www.instagram.com",
-            "facebook": "https://www.facebook.com",
-            "twitter": "https://twitter.com",
-            "linkedin": "https://www.linkedin.com",
-            "netflix": "https://www.netflix.com",
             "youtube": "https://www.youtube.com",
             "google": "https://www.google.com",
             "github": "https://github.com",
@@ -443,69 +427,31 @@ def open_website(app_name):
             "telegram": "https://web.telegram.org",
             "chatgpt": "https://chat.openai.com",
             "reddit": "https://www.reddit.com",
-            "pinterest": "https://www.pinterest.com",
-            "quora": "https://www.quora.com",
-            "bing": "https://www.bing.com",
-            "yahoo": "https://www.yahoo.com",
-            "duckduckgo": "https://duckduckgo.com",
             "wikipedia": "https://www.wikipedia.org",
             "stack overflow": "https://stackoverflow.com",
-            "codepen": "https://codepen.io",
-            "replit": "https://replit.com",
-            "medium": "https://medium.com",
-            "dev.to": "https://dev.to",
-            "kaggle": "https://www.kaggle.com",
-            "coursera": "https://www.coursera.org",
-            "udemy": "https://www.udemy.com",
-            "edx": "https://www.edx.org",
-            "leetcode": "https://leetcode.com",
-            "hackerrank": "https://www.hackerrank.com",
-            "geeksforgeeks": "https://www.geeksforgeeks.org",
+            "gmail": "https://mail.google.com",
+            "google drive": "https://drive.google.com",
+            "google maps": "https://maps.google.com",
+            "google docs": "https://docs.google.com",
             "canva": "https://www.canva.com",
             "figma": "https://www.figma.com",
             "notion": "https://www.notion.so",
-            "trello": "https://trello.com",
-            "slack": "https://slack.com",
-            "zoom": "https://zoom.us/join",
-            "google drive": "https://drive.google.com",
-            "google docs": "https://docs.google.com",
-            "google maps": "https://maps.google.com",
-            "gmail": "https://mail.google.com",
-            "outlook": "https://outlook.live.com",
-            "paytm": "https://paytm.com",
-            "phonepe": "https://www.phonepe.com",
-            "ola": "https://www.olacabs.com",
-            "uber": "https://www.uber.com",
+            "leetcode": "https://leetcode.com",
+            "geeksforgeeks": "https://www.geeksforgeeks.org",
             "swiggy": "https://www.swiggy.com",
             "irctc": "https://www.irctc.co.in",
-            "imdb": "https://www.imdb.com",
-            "bbc": "https://www.bbc.com",
-            "cnn": "https://www.cnn.com",
-            "telegram": "https://web.telegram.org",
-            "skype": "https://web.skype.com",
-            "amazon music": "https://music.amazon.in",
-            "kindle": "https://read.amazon.in",
-            "dropbox": "https://www.dropbox.com",
-            
-
-            
-
-            # Custom sites you asked for
-            "seeding minds":"https://seedingminds.co.in",
-            "orcode": "https://orcode.co.in"
+            "seeding minds": "https://seedingminds.co.in",
+            "orcode": "https://orcode.co.in",
         }
 
         if app_name in sites:
-            webbrowser.open(sites[app_name])
-            return f"Opening {app_name}"
+            return sites[app_name], f"Opening {app_name}"
 
-        # Default fallback
         url = f"https://www.{app_name}.com"
-        webbrowser.open(url)
-        return f"Opening {url}"
+        return url, f"Opening {app_name}"
 
     except Exception as e:
-        return f"Could not open website: {str(e)}"
+        return None, f"Could not open website: {str(e)}"
 # =====================================================
 # 🔊 VOLUME CONTROL
 # =====================================================
@@ -791,13 +737,14 @@ def command():
                 app_name = text.replace("close", "").strip()
                 return jsonify({"status": close_application(app_name)})
 
-            elif action == "open":
+        elif action == "open":
                 app_name = text.replace("open", "").strip()
                 result = open_application(app_name)
                 if result:
                     return jsonify({"status": result})
                 else:
-                    return jsonify({"status": open_website(app_name)})
+                    url, msg = open_website(app_name)
+                    return jsonify({"status": msg, "url": url})
 
             elif action == "vol_up":
                 return jsonify({"status": volume_up()})
