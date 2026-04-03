@@ -737,7 +737,7 @@ def command():
                 app_name = text.replace("close", "").strip()
                 return jsonify({"status": close_application(app_name)})
 
-        elif action == "open":
+            elif action == "open":
                 app_name = text.replace("open", "").strip()
                 result = open_application(app_name)
                 if result:
