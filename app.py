@@ -1065,103 +1065,83 @@ def reverse_geocode(lat, lon):
 @app.route("/login_notify", methods=["POST"])
 def login_notify():
     try:
-        now     = datetime.datetime.now().strftime("%A, %d %B %Y at %I:%M:%S %p")
+        now = datetime.datetime.now().strftime("%A, %d %B %Y at %I:%M:%S %p")
 
-        # Real user IP
+        # Get real user IP
         user_ip = (
             request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
             or request.headers.get("X-Real-IP", "")
             or request.remote_addr or "Unknown"
         )
 
-        # IP location
-        loc = {}
+        # Get location from IP
+        city = country = region = isp = "Unknown"
         try:
             with urllib.request.urlopen(
-                f"http://ip-api.com/json/{user_ip}?fields=status,query,city,regionName,country,lat,lon,isp",
+                f"http://ip-api.com/json/{user_ip}?fields=status,city,regionName,country,isp",
                 timeout=5
             ) as res:
                 data = json.loads(res.read().decode())
                 if data.get("status") == "success":
-                    loc = data
+                    city    = data.get("city", "Unknown")
+                    region  = data.get("regionName", "Unknown")
+                    country = data.get("country", "Unknown")
+                    isp     = data.get("isp", "Unknown")
         except Exception:
             pass
 
-        public_ip = loc.get("query", user_ip)
-        city      = loc.get("city", "Unknown")
-        region    = loc.get("regionName", "Unknown")
-        country   = loc.get("country", "Unknown")
-        isp       = loc.get("isp", "Unknown")
+        subject = f"OMNI Login Alert - {country}"
+        body = f"""Someone just logged into OMNI AI Assistant.
 
-        gps     = (request.json or {}).get("location", {})
-        gps_lat = gps.get("latitude", "")
-        gps_lon = gps.get("longitude", "")
-        gps_acc = gps.get("accuracy", "")
+Date & Time : {now}
+IP Address  : {user_ip}
+Country     : {country}
+City        : {city}, {region}
+ISP         : {isp}
 
-        if gps_lat and gps_lon:
-            lat, lon  = gps_lat, gps_lon
-            coord_src = f"GPS (±{round(float(gps_acc))}m)" if gps_acc else "GPS"
-        else:
-            lat, lon  = loc.get("lat", ""), loc.get("lon", "")
-            coord_src = "IP-based"
+If this was not you, please secure your account.
+"""
 
-        maps_link = f"https://maps.google.com/?q={lat},{lon}" if lat and lon else "N/A"
+        recipient    = "shivprajapati2060@gmail.com"
+        app_password = os.getenv("GMAIL_APP_PASSWORD", "").strip()
+        brevo_key    = os.getenv("BREVO_API_KEY", "").strip()
 
-        subject = f"OMNI Login Alert - {country} - {now}"
-        body = (
-            f"Someone logged into OMNI AI Assistant.\n\n"
-            f"  Date & Time  : {now}\n"
-            f"  User IP      : {public_ip}\n\n"
-            f"Location:\n"
-            f"  City         : {city}\n"
-            f"  Region       : {region}\n"
-            f"  Country      : {country}\n"
-            f"  ISP          : {isp}\n"
-            f"  Coordinates  : {lat}, {lon}\n"
-            f"  Accuracy     : {coord_src}\n"
-            f"  Google Maps  : {maps_link}\n"
-        )
-
-        # Use Resend API (works on Render free tier - no SMTP blocking)
-        resend_key = os.getenv("RESEND_API_KEY", "").strip()
-        recipient  = "shivprajapati2060@gmail.com"
-
-        if resend_key:
+        if brevo_key:
+            # Brevo (Sendinblue) HTTP API - works on Render free tier
             payload = json.dumps({
-                "from": "OMNI Alert <onboarding@resend.dev>",
-                "to": [recipient],
+                "sender": {"name": "OMNI Alert", "email": "shivprajapati2060@gmail.com"},
+                "to": [{"email": recipient}],
                 "subject": subject,
-                "text": body
+                "textContent": body
             }).encode()
             req = urllib.request.Request(
-                "https://api.resend.com/emails",
+                "https://api.brevo.com/v3/smtp/email",
                 data=payload,
                 headers={
-                    "Authorization": f"Bearer {resend_key}",
+                    "api-key": brevo_key,
                     "Content-Type": "application/json"
                 },
                 method="POST"
             )
             with urllib.request.urlopen(req, timeout=10) as res:
-                result = json.loads(res.read().decode())
-            print(f"[LOGIN NOTIFY] Resend OK - {country}/{city}/{public_ip}")
-            return jsonify({"status": "Email sent", "id": result.get("id")})
+                res.read()
+            print(f"[LOGIN NOTIFY] Brevo OK - {country}/{city}")
+            return jsonify({"status": "Email sent"})
 
-        # Fallback: try Gmail SMTP
-        app_password = os.getenv("GMAIL_APP_PASSWORD", "").strip()
         if not app_password:
-            return jsonify({"status": "No email config"}), 200
+            return jsonify({"status": "no email config"}), 200
 
         msg = MIMEMultipart()
         msg["Subject"] = subject
         msg["From"]    = recipient
         msg["To"]      = recipient
         msg.attach(MIMEText(body, "plain", "utf-8"))
+
         with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=15) as server:
             server.login(recipient, app_password)
             server.sendmail(recipient, recipient, msg.as_string())
 
-        print(f"[LOGIN NOTIFY] Gmail OK - {country}/{city}/{public_ip}")
+        print(f"[LOGIN NOTIFY] {country}/{city} - {user_ip}")
         return jsonify({"status": "Email sent"})
 
     except Exception as e:
