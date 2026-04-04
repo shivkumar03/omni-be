@@ -1065,17 +1065,16 @@ def reverse_geocode(lat, lon):
 @app.route("/login_notify", methods=["POST"])
 def login_notify():
     try:
-        now          = datetime.datetime.now().strftime("%A, %d %B %Y at %I:%M:%S %p")
+        now     = datetime.datetime.now().strftime("%A, %d %B %Y at %I:%M:%S %p")
 
-        # Get user's real IP from request headers (works on Render)
+        # Real user IP
         user_ip = (
             request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
             or request.headers.get("X-Real-IP", "")
-            or request.remote_addr
-            or "Unknown"
+            or request.remote_addr or "Unknown"
         )
 
-        # Get location from user's IP
+        # IP location
         loc = {}
         try:
             with urllib.request.urlopen(
@@ -1088,66 +1087,86 @@ def login_notify():
         except Exception:
             pass
 
-        sender       = "shivprajapati2060@gmail.com"
-        recipient    = "shivprajapati2060@gmail.com"
-        app_password = os.getenv("GMAIL_APP_PASSWORD", "").strip()
-
-        if not app_password:
-            return jsonify({"status": "Email failed", "error": "GMAIL_APP_PASSWORD not set"}), 500
-
         public_ip = loc.get("query", user_ip)
         city      = loc.get("city", "Unknown")
         region    = loc.get("regionName", "Unknown")
         country   = loc.get("country", "Unknown")
         isp       = loc.get("isp", "Unknown")
 
-        # GPS from browser
-        gps       = (request.json or {}).get("location", {})
-        gps_lat   = gps.get("latitude", "")
-        gps_lon   = gps.get("longitude", "")
-        gps_acc   = gps.get("accuracy", "")
+        gps     = (request.json or {}).get("location", {})
+        gps_lat = gps.get("latitude", "")
+        gps_lon = gps.get("longitude", "")
+        gps_acc = gps.get("accuracy", "")
 
         if gps_lat and gps_lon:
             lat, lon  = gps_lat, gps_lon
             coord_src = f"GPS (±{round(float(gps_acc))}m)" if gps_acc else "GPS"
         else:
             lat, lon  = loc.get("lat", ""), loc.get("lon", "")
-            coord_src = "IP-based (approximate)"
+            coord_src = "IP-based"
 
         maps_link = f"https://maps.google.com/?q={lat},{lon}" if lat and lon else "N/A"
 
+        subject = f"OMNI Login Alert - {country} - {now}"
         body = (
-            "OMNI AI Assistant - Login Alert\n\n"
+            f"Someone logged into OMNI AI Assistant.\n\n"
             f"  Date & Time  : {now}\n"
             f"  User IP      : {public_ip}\n\n"
-            "📍 Location:\n"
+            f"Location:\n"
             f"  City         : {city}\n"
             f"  Region       : {region}\n"
             f"  Country      : {country}\n"
             f"  ISP          : {isp}\n"
             f"  Coordinates  : {lat}, {lon}\n"
             f"  Accuracy     : {coord_src}\n"
-            f"  Google Maps  : {maps_link}\n\n"
-            "If this was not you, please secure your account."
+            f"  Google Maps  : {maps_link}\n"
         )
 
+        # Use Resend API (works on Render free tier - no SMTP blocking)
+        resend_key = os.getenv("RESEND_API_KEY", "").strip()
+        recipient  = "shivprajapati2060@gmail.com"
+
+        if resend_key:
+            payload = json.dumps({
+                "from": "OMNI Alert <onboarding@resend.dev>",
+                "to": [recipient],
+                "subject": subject,
+                "text": body
+            }).encode()
+            req = urllib.request.Request(
+                "https://api.resend.com/emails",
+                data=payload,
+                headers={
+                    "Authorization": f"Bearer {resend_key}",
+                    "Content-Type": "application/json"
+                },
+                method="POST"
+            )
+            with urllib.request.urlopen(req, timeout=10) as res:
+                result = json.loads(res.read().decode())
+            print(f"[LOGIN NOTIFY] Resend OK - {country}/{city}/{public_ip}")
+            return jsonify({"status": "Email sent", "id": result.get("id")})
+
+        # Fallback: try Gmail SMTP
+        app_password = os.getenv("GMAIL_APP_PASSWORD", "").strip()
+        if not app_password:
+            return jsonify({"status": "No email config"}), 200
+
         msg = MIMEMultipart()
-        msg["Subject"] = f"🔐 OMNI Login Alert - {country} - {now}"
-        msg["From"]    = sender
+        msg["Subject"] = subject
+        msg["From"]    = recipient
         msg["To"]      = recipient
         msg.attach(MIMEText(body, "plain", "utf-8"))
-
         with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=15) as server:
-            server.login(sender, app_password)
-            server.sendmail(sender, recipient, msg.as_string())
+            server.login(recipient, app_password)
+            server.sendmail(recipient, recipient, msg.as_string())
 
-        print(f"[LOGIN NOTIFY] Email sent — {country} / {city} / {public_ip}")
+        print(f"[LOGIN NOTIFY] Gmail OK - {country}/{city}/{public_ip}")
         return jsonify({"status": "Email sent"})
-    except smtplib.SMTPAuthenticationError:
-        return jsonify({"status": "Email failed", "error": "Gmail auth failed"}), 500
+
     except Exception as e:
         print(f"[LOGIN NOTIFY ERROR] {e}")
-        return jsonify({"status": "Email failed", "error": str(e)}), 500
+        return jsonify({"status": "failed", "error": str(e)}), 500
 
 
 # =====================================================
