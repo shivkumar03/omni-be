@@ -61,7 +61,7 @@ CONTACTS = {
     }
 }
 history_data = []
-CORS(app, origins=["https://omnidashboard.co.in", "http://localhost:5173", "http://127.0.0.1:5173"])
+CORS(app, origins="*")
 
 HISTORY_FILE = os.path.join(os.path.dirname(__file__), "history.json")
 
