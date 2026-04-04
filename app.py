@@ -1065,61 +1065,74 @@ def reverse_geocode(lat, lon):
 @app.route("/login_notify", methods=["POST"])
 def login_notify():
     try:
-        desktop_name = socket.gethostname()
-        ip_address   = socket.gethostbyname(desktop_name)
         now          = datetime.datetime.now().strftime("%A, %d %B %Y at %I:%M:%S %p")
-        loc          = get_live_location()
+
+        # Get user's real IP from request headers (works on Render)
+        user_ip = (
+            request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+            or request.headers.get("X-Real-IP", "")
+            or request.remote_addr
+            or "Unknown"
+        )
+
+        # Get location from user's IP
+        loc = {}
+        try:
+            with urllib.request.urlopen(
+                f"http://ip-api.com/json/{user_ip}?fields=status,query,city,regionName,country,lat,lon,isp",
+                timeout=5
+            ) as res:
+                data = json.loads(res.read().decode())
+                if data.get("status") == "success":
+                    loc = data
+        except Exception:
+            pass
 
         sender       = "shivprajapati2060@gmail.com"
         recipient    = "shivprajapati2060@gmail.com"
         app_password = os.getenv("GMAIL_APP_PASSWORD", "").strip()
 
         if not app_password:
-            return jsonify({"status": "Email failed", "error": "GMAIL_APP_PASSWORD not set in .env"}), 500
+            return jsonify({"status": "Email failed", "error": "GMAIL_APP_PASSWORD not set"}), 500
 
-        public_ip  = loc.get("query", ip_address)
-        city       = loc.get("city", "Unknown")
-        region     = loc.get("regionName", "Unknown")
-        country    = loc.get("country", "Unknown")
-        isp        = loc.get("isp", "Unknown")
+        public_ip = loc.get("query", user_ip)
+        city      = loc.get("city", "Unknown")
+        region    = loc.get("regionName", "Unknown")
+        country   = loc.get("country", "Unknown")
+        isp       = loc.get("isp", "Unknown")
 
-        # GPS coordinates from browser (high accuracy ~200m)
-        gps        = (request.json or {}).get("location", {})
-        gps_lat    = gps.get("latitude", "")
-        gps_lon    = gps.get("longitude", "")
-        gps_acc    = gps.get("accuracy", "")
-        gps_error  = gps.get("error", "")
+        # GPS from browser
+        gps       = (request.json or {}).get("location", {})
+        gps_lat   = gps.get("latitude", "")
+        gps_lon   = gps.get("longitude", "")
+        gps_acc   = gps.get("accuracy", "")
 
         if gps_lat and gps_lon:
-            lat, lon   = gps_lat, gps_lon
-            coord_src  = f"GPS (±{round(float(gps_acc))}m)" if gps_acc else "GPS"
+            lat, lon  = gps_lat, gps_lon
+            coord_src = f"GPS (±{round(float(gps_acc))}m)" if gps_acc else "GPS"
         else:
-            lat, lon   = loc.get("lat", ""), loc.get("lon", "")
-            coord_src  = "IP-based (approximate)"
+            lat, lon  = loc.get("lat", ""), loc.get("lon", "")
+            coord_src = "IP-based (approximate)"
 
-        maps_link  = f"https://maps.google.com/?q={lat},{lon}" if lat and lon else "N/A"
+        maps_link = f"https://maps.google.com/?q={lat},{lon}" if lat and lon else "N/A"
 
         body = (
             "OMNI AI Assistant - Login Alert\n\n"
-            "Someone just logged into OMNI AI Assistant.\n\n"
-            f"  Desktop Name : {desktop_name}\n"
-            f"  Local IP     : {ip_address}\n"
-            f"  Public IP    : {public_ip}\n"
-            f"  Date & Time  : {now}\n\n"
-            "📍 Live Location:\n"
+            f"  Date & Time  : {now}\n"
+            f"  User IP      : {public_ip}\n\n"
+            "📍 Location:\n"
             f"  City         : {city}\n"
             f"  Region       : {region}\n"
             f"  Country      : {country}\n"
             f"  ISP          : {isp}\n"
             f"  Coordinates  : {lat}, {lon}\n"
             f"  Accuracy     : {coord_src}\n"
-            f"  Google Maps  : {maps_link}\n"
-            + (f"  GPS Error    : {gps_error}\n" if gps_error else "") +
-            "\nIf this was not you, please secure your account."
+            f"  Google Maps  : {maps_link}\n\n"
+            "If this was not you, please secure your account."
         )
 
         msg = MIMEMultipart()
-        msg["Subject"] = "OMNI Login Alert - " + now
+        msg["Subject"] = f"🔐 OMNI Login Alert - {country} - {now}"
         msg["From"]    = sender
         msg["To"]      = recipient
         msg.attach(MIMEText(body, "plain", "utf-8"))
@@ -1128,10 +1141,10 @@ def login_notify():
             server.login(sender, app_password)
             server.sendmail(sender, recipient, msg.as_string())
 
-        print(f"[LOGIN NOTIFY] Email sent to {recipient} at {now}")
+        print(f"[LOGIN NOTIFY] Email sent — {country} / {city} / {public_ip}")
         return jsonify({"status": "Email sent"})
     except smtplib.SMTPAuthenticationError:
-        return jsonify({"status": "Email failed", "error": "Gmail authentication failed. Check App Password in .env"}), 500
+        return jsonify({"status": "Email failed", "error": "Gmail auth failed"}), 500
     except Exception as e:
         print(f"[LOGIN NOTIFY ERROR] {e}")
         return jsonify({"status": "Email failed", "error": str(e)}), 500
